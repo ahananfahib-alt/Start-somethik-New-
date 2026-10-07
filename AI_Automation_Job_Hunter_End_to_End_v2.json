@@ -1,0 +1,541 @@
+{
+  "name": "AI Automation Job Hunter - End to End Sales",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "facebook-job-post",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Facebook Job Post Input",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "post_text",
+              "value": "={{ $json.body?.post_text || $json.post_text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "b",
+              "name": "post_url",
+              "value": "={{ $json.body?.post_url || $json.post_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c",
+              "name": "group_name",
+              "value": "={{ $json.body?.group_name || $json.group_name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "d",
+              "name": "person_name",
+              "value": "={{ $json.body?.person_name || $json.person_name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "e",
+              "name": "profile_url",
+              "value": "={{ $json.body?.profile_url || $json.profile_url || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Prepare Job Post",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama3.2', stream: false, format: 'json', prompt: 'Classify this Facebook post. Return ONLY JSON: is_automation_job (boolean), confidence (0-1), job_summary, requirements, suggested_first_message. True only when the author is genuinely looking for automation/AI automation/n8n/workflow/CRM/lead/chatbot/AI-agent/integration services. Do not invent facts. Post: ' + $json.post_text } }}",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Ollama - Qualify Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.response||$json.body?.response||''; let r; try{r=JSON.parse(raw)}catch(e){const m=raw.match(/\\{[\\s\\S]*\\}/);if(!m)throw new Error('Ollama returned invalid JSON');r=JSON.parse(m[0])} return [{json:{...$('Prepare Job Post').first().json,...r}}];"
+      },
+      "id": "4",
+      "name": "Parse Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "job",
+              "leftValue": "={{ $json.is_automation_job }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Is Automation Job?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama3.2', stream: false, prompt: 'Write a concise professional personalized first sales message for this automation job post. Do not invent pricing, experience, results, or capabilities. Return only the message. Post: ' + $json.post_text + '\\nRequirements: ' + $json.requirements } }}",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Ollama - Create First Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg=$json.response||$json.body?.response||''; return [{json:{...$('Parse Qualification').first().json,first_message:msg,conversation_status:'awaiting_reply'}}];"
+      },
+      "id": "7",
+      "name": "Prepare First Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "facebook-send-message",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "8",
+      "name": "Facebook Send First Message - Adapter",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "facebook-conversation-reply",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "9",
+      "name": "Facebook Reply Input",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "person_name",
+              "value": "={{ $json.body?.person_name || $json.person_name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "b",
+              "name": "post_url",
+              "value": "={{ $json.body?.post_url || $json.post_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c",
+              "name": "conversation_history",
+              "value": "={{ $json.body?.conversation_history || $json.conversation_history || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "d",
+              "name": "prospect_message",
+              "value": "={{ $json.body?.prospect_message || $json.prospect_message || '' }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "10",
+      "name": "Prepare Conversation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -960,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama3.2', stream: false, format: 'json', prompt: 'You are an AI automation sales representative. Understand the prospect, answer naturally using only the provided conversation, and move an interested prospect toward a meeting. Never invent pricing, features, results, dates, names, or policies. Do NOT create Google Meet or Calendar events. When ready for a meeting, ask when they are available today or tomorrow and then stop. Return ONLY JSON: {\"stage\":\"continue|meeting_ready|waiting_for_availability\",\"reply\":\"customer-facing message\",\"reason\":\"short internal reason\"}. History: ' + $json.conversation_history + '\\nLatest message: ' + $json.prospect_message } }}",
+        "options": {}
+      },
+      "id": "11",
+      "name": "Ollama - Conversation AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.response||$json.body?.response||''; let r; try{r=JSON.parse(raw)}catch(e){const m=raw.match(/\\{[\\s\\S]*\\}/);if(!m)throw new Error('Ollama conversation response is invalid JSON');r=JSON.parse(m[0])} return [{json:{...$('Prepare Conversation').first().json,...r,ai_reply:r.reply}}];"
+      },
+      "id": "12",
+      "name": "Parse Conversation AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "facebook-send-ai-reply",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "13",
+      "name": "Facebook Send AI Reply - Adapter",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ready",
+              "leftValue": "={{ $json.stage }}",
+              "rightValue": "waiting_for_availability",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "14",
+      "name": "Meeting Availability Requested?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "final_status",
+              "value": "meeting_availability_requested",
+              "type": "string"
+            },
+            {
+              "id": "b",
+              "name": "person_name",
+              "value": "={{ $json.person_name }}",
+              "type": "string"
+            },
+            {
+              "id": "c",
+              "name": "availability_message",
+              "value": "={{ $json.ai_reply }}",
+              "type": "string"
+            },
+            {
+              "id": "d",
+              "name": "post_url",
+              "value": "={{ $json.post_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "15",
+      "name": "Meeting Lead Ready",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Facebook Job Post Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Job Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Job Post": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Qualify Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Qualify Post": {
+      "main": [
+        [
+          {
+            "node": "Parse Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Qualification": {
+      "main": [
+        [
+          {
+            "node": "Is Automation Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Automation Job?": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Create First Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Ollama - Create First Message": {
+      "main": [
+        [
+          {
+            "node": "Prepare First Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare First Message": {
+      "main": [
+        [
+          {
+            "node": "Facebook Send First Message - Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Reply Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Conversation": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Conversation AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Conversation AI": {
+      "main": [
+        [
+          {
+            "node": "Parse Conversation AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Conversation AI": {
+      "main": [
+        [
+          {
+            "node": "Facebook Send AI Reply - Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Send AI Reply - Adapter": {
+      "main": [
+        [
+          {
+            "node": "Meeting Availability Requested?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meeting Availability Requested?": {
+      "main": [
+        [
+          {
+            "node": "Meeting Lead Ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "ai-job-hunter-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
