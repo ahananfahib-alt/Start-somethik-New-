@@ -1,1 +1,4 @@
-Git to GitHub test
+const name = "Fahib";
+const message = `Hello, ${name}! Git and GitHub are working.`;
+
+console.log(message);
